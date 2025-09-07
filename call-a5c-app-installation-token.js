@@ -122,7 +122,7 @@ async function main() {
     new Promise((resolve, reject) => {
       try {
         const u = new URL(url);
-        const bodyStr = JSON.stringify({ owner, repo.split("/")[repo.split("/").length-1], run_id, app_id });
+        const bodyStr = JSON.stringify({ owner, repo:repo.split("/")[repo.split("/").length-1], run_id, app_id });
         const headers = {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(bodyStr),
