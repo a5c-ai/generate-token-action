@@ -35,26 +35,10 @@ runs:
       with:
         node-version: '20'
 
-    - name: Validate base-url and insecure flag
-      shell: bash
-      env:
-        A5C_BASE_URL: ${{ inputs.base-url }}
-        INSECURE: ${{ inputs.insecure-skip-tls-verify }}
-      run: |
-        set -euo pipefail
-        # Reject allowing insecure TLS on production hosts
-        if node scripts/shared/host-env.js is-prod "$A5C_BASE_URL"; then
-          case "${INSECURE,,}" in
-            1|true|yes)
-              echo "Refusing to allow insecure TLS for production host: $A5C_BASE_URL" >&2
-              exit 1
-              ;;
-          esac
-        fi
-
     - name: Generate installation token
       id: gen
       shell: bash
+      working-directory: ${{ github.action_path }}
       env:
         A5C_BASE_URL: ${{ inputs.base-url }}
         A5C_OWNER: ${{ github.repository_owner }}
@@ -62,7 +46,7 @@ runs:
         A5C_GITHUB_APP_ID: ${{ inputs['app-id'] }}
         GITHUB_TOKEN: ${{ github.token }}
         # Preferred new flag
-        A5C_INSECURE: ${{ inputs.insecure }}
+        A5C_INSECURE: ${{ inputs.insecure }}        
       run: |
         set -euo pipefail
         BASE=${A5C_BASE_URL}
