@@ -1,18 +1,11 @@
 #!/usr/bin/env node
 // Simple client that calls the a5c endpoint to create a GitHub App installation token
 // Usage: node scripts/call-a5c-app-installation-token.js --base https://your.app --owner o --repo r --run 123 --app 456 [--insecure]
-//
-// Security notes:
-// - TLS verification is ON by default.
-// - For local/self-signed testing you may use --insecure (or env A5C_INSECURE=true / A5C_ALLOW_INSECURE_TLS=1),
-//   which disables TLS verification ONLY for this request and ONLY when base is non‑production.
-// - Insecure mode is refused when base host is production.
 
 const args = require('node:process').argv.slice(2);
 
 const https = require('https');
 const http = require('http');
-const { isLocalHost, isProdHost, toHost } = require('./shared/host-env');
 
 const opts = {};
 for (let i = 0; i < args.length; i++) {
@@ -65,54 +58,22 @@ async function main() {
 
   // Security guardrails and per-request TLS control
   let isHttps = false;
-  let isHttp = false;
-  let host = '';
+  let isHttp = false;  
   let local = false;
   try {
     const u = new URL(base);
     isHttps = u.protocol === 'https:';
     isHttp = u.protocol === 'http:';
-    host = toHost(base);
-    local = isLocalHost(host);
+    
   } catch {}
   // Warn when calling over plain HTTP, which is insecure; allow localhost without extra verbiage
   const suppressHttpWarn = ['1', 'true', 'yes'].includes(
     val(process.env.A5C_SUPPRESS_HTTP_WARNING),
   );
   if (isHttp && !suppressHttpWarn) {
-    if (local) {
-      console.error(
-        `Warning: using insecure HTTP base URL (${base}). This is acceptable for local development only.`,
-      );
-    } else {
       console.error(
         `Warning: using insecure HTTP base URL (${base}). Prefer HTTPS in non-local environments.`,
       );
-    }
-  }
-
-  // Refuse implicit global TLS bypass against non-local HTTPS endpoints
-  const insecureEnv =
-    String(process.env.NODE_TLS_REJECT_UNAUTHORIZED || '').trim() === '0';
-  if (isHttps && !local && insecureEnv && !insecureRequested) {
-    console.error(
-      'Refusing to call HTTPS endpoint with TLS verification disabled via NODE_TLS_REJECT_UNAUTHORIZED=0.',
-    );
-    console.error(
-      'Remove NODE_TLS_REJECT_UNAUTHORIZED=0 or pass --insecure (ONLY for non-production, self-signed testing).',
-    );
-    process.exit(3);
-  }
-
-  // Refuse insecure mode on production base
-  if (insecureRequested && isHttps && isProdHost(host)) {
-    console.error(`Refusing --insecure for production host: ${host}`);
-    process.exit(4);
-  }
-  if (insecureRequested) {
-    console.warn(
-      'WARNING: --insecure mode enabled. TLS certificate verification will be disabled for this request.',
-    );
   }
 
   const url = `${base.replace(/\/$/, '')}/api/github/app/token`;
