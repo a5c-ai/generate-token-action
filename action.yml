@@ -1,0 +1,85 @@
+name: a5c-generate-installation-token
+description: Fetch a temporary installation access token for the a5c GitHub App via the app endpoint
+
+inputs:
+  base-url:
+    description: Base URL of the a5c app (e.g., https://app.a5c.ai)
+    required: false
+    default: 'https://app.a5c.ai'
+  # New explicit insecure toggle (preferred going forward)
+  insecure:
+    description: "Set to 'true' to allow self-signed TLS for non-production hosts only"
+    required: false
+    default: 'false'
+  owner:
+    description: Repository owner
+    required: true
+  repo:
+    description: Repository name
+    required: true    
+  app-id:
+    description: GitHub App ID
+    required: false
+    default: '1616094'
+
+outputs:
+  a5c_token:
+    description: Generated installation access token
+    value: ${{ steps.gen.outputs.a5c_token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Use Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: '20'
+
+    - name: Validate base-url and insecure flag
+      shell: bash
+      env:
+        A5C_BASE_URL: ${{ inputs.base-url }}
+        INSECURE: ${{ inputs.insecure-skip-tls-verify }}
+      run: |
+        set -euo pipefail
+        # Reject allowing insecure TLS on production hosts
+        if node scripts/shared/host-env.js is-prod "$A5C_BASE_URL"; then
+          case "${INSECURE,,}" in
+            1|true|yes)
+              echo "Refusing to allow insecure TLS for production host: $A5C_BASE_URL" >&2
+              exit 1
+              ;;
+          esac
+        fi
+
+    - name: Generate installation token
+      id: gen
+      shell: bash
+      env:
+        A5C_BASE_URL: ${{ inputs.base-url }}
+        A5C_OWNER: ${{ github.repository_owner }}
+        A5C_REPO: ${{ github.repository	 }}
+        A5C_GITHUB_APP_ID: ${{ inputs['app-id'] }}
+        GITHUB_TOKEN: ${{ github.token }}
+        # Preferred new flag
+        A5C_INSECURE: ${{ inputs.insecure }}
+      run: |
+        set -euo pipefail
+        BASE=${A5C_BASE_URL}
+        # Determine insecure intent from either input name
+        WANT_INSECURE=$(echo "${A5C_INSECURE:-false}" | tr '[:upper:]' '[:lower:]')
+        EXTRA_ARG=""
+        if [ "$WANT_INSECURE" = "true" ]; then
+          host=$(node -e "console.log(new URL(process.argv[1]).hostname)" "$BASE")
+          if [ "$host" = "app.a5c.ai" ]; then
+            echo "Refusing to run in insecure mode against production host app.a5c.ai" >&2
+            exit 3
+          fi
+          echo "[warn] Insecure mode enabled for host: $host"
+          EXTRA_ARG="--insecure"
+        fi
+        node call-a5c-app-installation-token.js $EXTRA_ARG > /tmp/a5c_token_resp.json
+        token=$(node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/a5c_token_resp.json','utf8'));process.stdout.write(j.a5c_token||'')")
+        if [ -z "$token" ]; then echo 'Failed to parse a5c_token'; cat /tmp/a5c_token_resp.json; exit 1; fi
+        echo "::add-mask::$token"
+        echo "a5c_token=$token" >> "$GITHUB_OUTPUT"
