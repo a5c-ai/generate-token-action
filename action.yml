@@ -11,12 +11,6 @@ inputs:
     description: "Set to 'true' to allow self-signed TLS for non-production hosts only"
     required: false
     default: 'false'
-  owner:
-    description: Repository owner
-    required: true
-  repo:
-    description: Repository name
-    required: true    
   app-id:
     description: GitHub App ID
     required: false
@@ -45,7 +39,6 @@ runs:
         A5C_REPO: ${{ github.repository	 }}
         A5C_GITHUB_APP_ID: ${{ inputs['app-id'] }}
         GITHUB_TOKEN: ${{ github.token }}
-        # Preferred new flag
         A5C_INSECURE: ${{ inputs.insecure }}        
       run: |
         set -euo pipefail
